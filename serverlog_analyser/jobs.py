@@ -94,9 +94,10 @@ class JobManager:
             job.status = "failed"
             job.error = str(e)
         finally:
-            # remove the uploaded tempfile after processing to save disk
+            # remove the uploaded tempfile after processing to save disk (controlled by config)
             try:
-                if job and job.tmp_path:
+                from .config import DELETE_UPLOADS_AFTER_PROCESSING
+                if (DELETE_UPLOADS_AFTER_PROCESSING) and job and job.tmp_path:
                     import os
                     if os.path.exists(job.tmp_path):
                         os.remove(job.tmp_path)

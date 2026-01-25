@@ -146,6 +146,13 @@
     const csvIpsBtn = document.getElementById('csvIps');
     const csvPathsBtn = document.getElementById('csvPaths');
 
+    // config (fetched from server). fallback values
+    window.APP_CONFIG = { top_n_ips: 20, top_n_paths: 20, show_variants_by_default: false };
+    fetch('/api/config').then(r => r.json()).then(cfg => { window.APP_CONFIG = cfg; 
+        // apply default variants visibility
+        if (window.APP_CONFIG.show_variants_by_default) topPathsTreeEl.classList.add('show-variants');
+    }).catch(() => {});
+
     // explorer controls
     expandAllBtn.addEventListener('click', () => {
       topPathsTreeEl.querySelectorAll('details.node').forEach(d => d.open = true);
@@ -158,13 +165,13 @@
       showVariantsToggleBtn.textContent = on ? 'Masquer variantes' : 'Afficher variantes';
     });
 
-    function renderTableList(container, items) {
+    function renderTableList(container, items, maxRows) {
       // items: [[key, count], ...]
       if (!items || items.length === 0) {
         container.innerHTML = '<div class="muted">—</div>';
         return;
       }
-      const maxRows = 20;
+      maxRows = maxRows || ((window.APP_CONFIG && window.APP_CONFIG.top_n_ips) || 20);
       const rows = items.slice(0, maxRows).map(([key, count], idx) => {
         const safeKey = escapeHtml(String(key));
         return `

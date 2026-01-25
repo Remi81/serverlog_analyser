@@ -6,6 +6,7 @@ from collections import Counter
 import statistics
 from typing import List, Dict, Any, Optional
 import aiofiles
+from .config import TOP_N_IPS, TOP_N_PATHS, AGGREGATED_LIMIT
 
 class LogParser:
     pattern = re.compile(r"^(?P<ip>\S+) .* \"(?P<method>\S+) (?P<path>\S+) .*\" (?P<status>\d{3}) (?P<size>\S+)(?: (?P<duration>\d+(?:\.\d+)?))?.*$")
@@ -103,13 +104,13 @@ class LogParser:
                 pass
 
         # Also provide aggregated paths (without query strings) to surface logical roots such as /aides
-        aggregated = norm_paths.most_common(200)
+        aggregated = norm_paths.most_common(AGGREGATED_LIMIT)
 
         return {
             "total_requests": total,
             "status_counts": dict(status_counts),
-            "top_paths": paths.most_common(20),
+            "top_paths": paths.most_common(TOP_N_PATHS),
             "top_paths_aggregated": aggregated,
-            "top_ips": ips.most_common(20),
+            "top_ips": ips.most_common(TOP_N_IPS),
             "timings": timings,
         }

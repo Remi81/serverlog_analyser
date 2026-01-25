@@ -81,6 +81,13 @@ async def _set_job_manager_loop():
     except Exception as e:
         logger.exception("Failed to set JobManager loop on startup: %s", e)
 
+# small endpoint to expose frontend-friendly config
+from serverlog_analyser.config import as_frontend_dict
+
+@app.get('/api/config')
+async def get_config():
+    return as_frontend_dict()
+
 # ---------------------------------
 # Helpers
 # ---------------------------------
