@@ -43,10 +43,21 @@
         <div style="flex:1;min-width:260px">
           <h3>Top IPs <button id="copyIps" class="btn small" style="display:none;margin-left:8px">Copier IPs</button> <button id="csvIps" class="btn small" style="display:none;background:#0ea5e9">CSV</button></h3>
           <div id="topIps">—</div>
-
-          <h3 style="margin-top:12px">Top URLs <button id="copyPaths" class="btn small" style="display:none;margin-left:8px">Copier URLs</button> <button id="csvPaths" class="btn small" style="display:none;background:#0ea5e9">CSV</button></h3>
-          <div id="topPaths">—</div>
         </div>
+      </div>
+
+      <div style="width:100%;margin-top:12px">
+        <h3>Top URLs (explorer)
+          <span class="controls" style="float:right">
+            <button id="expandAll" class="btn small">Tout dérouler</button>
+            <button id="collapseAll" class="btn small" style="background:#9ca3af">Tout réduire</button>
+            <button id="showVariantsToggle" class="btn small" style="margin-left:8px">Afficher variantes</button>
+            <button id="copyPaths" class="btn small" style="display:none;margin-left:8px">Copier URLs</button>
+            <button id="csvPaths" class="btn small" style="display:none;background:#0ea5e9">CSV</button>
+          </span>
+        </h3>
+        <div id="topPathsTree" class="url-tree">—</div>
+      </div>
       </div>
 
       <h3 style="margin-top:14px">JSON brut</h3>
@@ -123,6 +134,10 @@
     // helpers to render simple tables and provide copy/CSV
     const topIpsEl = document.getElementById('topIps');
     const topPathsEl = document.getElementById('topPaths');
+    const topPathsTreeEl = document.getElementById('topPathsTree');
+    const expandAllBtn = document.getElementById('expandAll');
+    const collapseAllBtn = document.getElementById('collapseAll');
+    const showVariantsToggleBtn = document.getElementById('showVariantsToggle');
     const statusCountsEl = document.getElementById('statusCounts');
     const summaryEl = document.getElementById('summary');
     const timingsEl = document.getElementById('timings');
@@ -130,6 +145,18 @@
     const copyPathsBtn = document.getElementById('copyPaths');
     const csvIpsBtn = document.getElementById('csvIps');
     const csvPathsBtn = document.getElementById('csvPaths');
+
+    // explorer controls
+    expandAllBtn.addEventListener('click', () => {
+      topPathsTreeEl.querySelectorAll('details.node').forEach(d => d.open = true);
+    });
+    collapseAllBtn.addEventListener('click', () => {
+      topPathsTreeEl.querySelectorAll('details.node').forEach(d => d.open = false);
+    });
+    showVariantsToggleBtn.addEventListener('click', () => {
+      const on = topPathsTreeEl.classList.toggle('show-variants');
+      showVariantsToggleBtn.textContent = on ? 'Masquer variantes' : 'Afficher variantes';
+    });
 
     function renderTableList(container, items) {
       // items: [[key, count], ...]
@@ -174,13 +201,84 @@
       try { await navigator.clipboard.writeText(toPlainList(currentResult.top_ips || [])); copyIpsBtn.textContent='Copié !'; setTimeout(()=>copyIpsBtn.textContent='Copier IPs',1200); } catch(e){ alert('Impossible de copier : '+e.message); }
     });
     copyPathsBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(toPlainList(currentResult.top_paths || [])); copyPathsBtn.textContent='Copié !'; setTimeout(()=>copyPathsBtn.textContent='Copier URLs',1200); } catch(e){ alert('Impossible de copier : '+e.message); }
+      try { const items = currentResult.top_paths_aggregated || currentResult.top_paths || []; await navigator.clipboard.writeText(toPlainList(items)); copyPathsBtn.textContent='Copié !'; setTimeout(()=>copyPathsBtn.textContent='Copier URLs',1200); } catch(e){ alert('Impossible de copier : '+e.message); }
     });
 
     csvIpsBtn.addEventListener('click', () => { downloadContent('top_ips.csv', toCsv(currentResult.top_ips || [])); });
     csvPathsBtn.addEventListener('click', () => { downloadContent('top_paths.csv', toCsv(currentResult.top_paths || [])); });
 
     function downloadContent(filename, content){ const blob = new Blob([content], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    // build hierarchical tree from an array of [path, count]
+    function buildUrlTree(items){
+      const root = {name: '', children: new Map(), count: 0};
+      // remove hash-like tokens from filename segments to group similar assets
+      const normalizeSegment = (seg) => String(seg).replace(/\.[0-9a-f]{6,}/gi, '');
+      for(const [path, count] of items){
+        let p = path || '/';
+        // remove query string and trailing slash for grouping
+        const qidx = p.indexOf('?'); if (qidx !== -1) p = p.slice(0,qidx);
+        if (p !== '/' && p.endsWith('/')) p = p.slice(0,-1);
+        // normalize segments (strip hashes) for grouping
+        const parts = p.split('/').filter(Boolean).map(normalizeSegment); // removes empty
+        let node = root;
+        node.count += count;
+        let built = '';
+        for(const part of parts){
+          built += '/' + part;
+          if (!node.children.has(part)){
+            node.children.set(part, {name: part, children: new Map(), count: 0, path: built, originals: new Map()});
+          }
+          node = node.children.get(part);
+          node.count += count;
+        }
+        if (parts.length === 0){
+          // root path
+          node.path = '/';
+        } else {
+          // record original full path under the leaf node for reference (used to show original hashed names)
+          const leaf = node;
+          leaf.originals.set(path, (leaf.originals.get(path) || 0) + count);
+        }
+      }
+      return root;
+    }
+
+    function renderUrlTree(container, items){
+      const tree = buildUrlTree(items);
+      function renderNode(node){
+        const hasChildren = node.children && node.children.size > 0;
+        const label = node.name || '/';
+        if (!hasChildren){
+          // leaf - show normalized path and count, plus list original hashed filenames if present
+          const path = node.path || '/';
+          let originalsHtml = '';
+          if (node.originals && node.originals.size > 1){
+            const origItems = Array.from(node.originals.entries()).map(([op,c]) => `<div class="orig"><code>${escapeHtml(op)}</code> <span class="count">${c}</span></div>`).join('');
+            originalsHtml = `<div class="orig-list">${origItems}</div>`;
+          } else if (node.originals && node.originals.size === 1){
+            const [op,c] = Array.from(node.originals.entries())[0];
+            // only show single original if it's meaningfully different from the normalized path
+            if (op !== path) {
+              originalsHtml = `<div class="orig single"><code>${escapeHtml(op)}</code></div>`;
+            }
+          }
+          return `<div class="url-leaf"><div class="path">${escapeHtml(path)}</div><div class="count">${node.count}</div><button class="copy-item small" data-key="${escapeHtml(path)}" title="Copier">📋</button>${originalsHtml}</div>`;
+        }
+        // render details with children (closed by default to behave like an explorer)
+        const childHtml = Array.from(node.children.values()).map(ch => renderNode(ch)).join('\n');
+        const nodePath = node.path || '/';
+        return `<details class="node"><summary tabindex="0"><span class="caret">▸</span><span class="node-label">${escapeHtml(label)}</span> <span class="count">${node.count}</span> <button class="copy-item small" data-key="${escapeHtml(nodePath)}" title="Copier">📋</button></summary><div class="children">${childHtml}</div></details>`;
+      }
+      // render top-level children (no limit for now — show all roots sorted by count)
+      const allChildren = Array.from(tree.children.values());
+      const sortedChildren = allChildren.sort((a,b) => b.count - a.count);
+      const html = sortedChildren.map(ch => renderNode(ch)).join('\n');
+      container.innerHTML = html || '<div class="muted">—</div>';
+    }
+
+    // helpers to flatten tree for copy/CSV buttons
+    function flattenItems(items){ return items.map(([k,v]) => [k,v]); }
 
     let currentResult = null;
 
@@ -211,11 +309,12 @@
           }
           // top lists (table format, up to 20)
           renderTableList(topIpsEl, currentResult.top_ips || []);
-          renderTableList(topPathsEl, currentResult.top_paths || []);
+          // use aggregated paths if available (groups query variants like /aides/?page=...)
+          renderUrlTree(topPathsTreeEl, currentResult.top_paths_aggregated || currentResult.top_paths || []);
 
           // show copy/CSV buttons
           if ((currentResult.top_ips || []).length) { copyIpsBtn.style.display='inline-block'; csvIpsBtn.style.display='inline-block'; }
-          if ((currentResult.top_paths || []).length) { copyPathsBtn.style.display='inline-block'; csvPathsBtn.style.display='inline-block'; }
+          if ((currentResult.top_paths_aggregated || currentResult.top_paths || []).length) { copyPathsBtn.style.display='inline-block'; csvPathsBtn.style.display='inline-block'; }
 
           // show raw JSON
           resultEl.textContent = JSON.stringify(currentResult, null, 2);

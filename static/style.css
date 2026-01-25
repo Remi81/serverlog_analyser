@@ -20,6 +20,24 @@ body{font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial,sans-ser
 .copy-item{background:transparent;border:1px solid transparent;padding:2px 6px;border-radius:6px;cursor:pointer;margin-left:8px}
 .copy-item:active{transform:translateY(1px)}
 .copy-item:hover{background:rgba(0,0,0,0.04)}
+
+/* URL tree styles */
+.url-tree{background:var(--card);padding:12px;border-radius:8px;max-height:480px;overflow:auto;border:1px solid rgba(0,0,0,0.03)}
+.url-tree details{margin:6px 0}
+.url-tree summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px}
+.url-tree summary .caret{display:inline-block;width:14px;transform:rotate(0);transition:transform .12s}
+.url-tree details[open] summary .caret{transform:rotate(90deg)}
+.url-tree .children{padding-left:18px;margin-top:6px}
+.url-leaf{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:4px 0}
+.url-leaf .path{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.url-leaf .count{width:72px;text-align:right;color:var(--muted);font-weight:600;margin-left:12px}
+.orig-list{margin-top:6px;padding-left:12px;color:var(--muted);font-size:13px;display:none}
+.url-tree.show-variants .orig-list{display:block}
+.orig-list .orig{display:flex;gap:8px;align-items:center}
+.orig-list code{background:rgba(0,0,0,0.03);padding:2px 6px;border-radius:4px}
+.orig-list{margin-top:6px;padding-left:12px;color:var(--muted);font-size:13px}
+.orig-list .orig{display:flex;gap:8px;align-items:center}
+.orig-list code{background:rgba(0,0,0,0.03);padding:2px 6px;border-radius:4px}
 .list-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(0,0,0,0.04)}
 .list-key{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .list-count{width:56px;text-align:right;color:var(--muted);font-weight:600}

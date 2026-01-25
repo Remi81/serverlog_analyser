@@ -16,6 +16,8 @@ class LogParser:
         status_counts = Counter()
         paths = Counter()
         ips = Counter()
+        # aggregated paths without query/fragments (useful to group /aides/?page=1 etc.)
+        norm_paths = Counter()
         durations: List[float] = []
 
         total_bytes = 0
@@ -55,7 +57,13 @@ class LogParser:
                         ip = search.group('ipv4')
                 status = m.group("status")
                 status_counts[status] += 1
-                paths[m.group("path")] += 1
+                raw_path = m.group("path")
+                paths[raw_path] += 1
+                # normalize path for aggregation (strip query string and fragment, remove trailing slash)
+                norm = raw_path.split('?')[0].split('#')[0]
+                if norm != '/' and norm.endswith('/'):
+                    norm = norm[:-1]
+                norm_paths[norm] += 1
                 ips[ip] += 1
                 d = m.group("duration")
                 if d:
@@ -94,10 +102,14 @@ class LogParser:
             except Exception:
                 pass
 
+        # Also provide aggregated paths (without query strings) to surface logical roots such as /aides
+        aggregated = norm_paths.most_common(200)
+
         return {
             "total_requests": total,
             "status_counts": dict(status_counts),
             "top_paths": paths.most_common(20),
+            "top_paths_aggregated": aggregated,
             "top_ips": ips.most_common(20),
             "timings": timings,
         }
