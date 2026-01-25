@@ -93,6 +93,17 @@ class JobManager:
             logger.exception("Job processing failed: %s", e)
             job.status = "failed"
             job.error = str(e)
+        finally:
+            # remove the uploaded tempfile after processing to save disk
+            try:
+                if job and job.tmp_path:
+                    import os
+                    if os.path.exists(job.tmp_path):
+                        os.remove(job.tmp_path)
+                        logger.info("Removed temporary file for job %s: %s", job_id, job.tmp_path)
+                    job.tmp_path = None
+            except Exception as e:
+                logger.exception("Failed to remove temporary file for job %s: %s", job_id, e)
 
     def process_job(self, job_id: str):
         # If called from an async context with a running loop, schedule directly
