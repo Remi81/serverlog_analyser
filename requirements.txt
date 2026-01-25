@@ -1,0 +1,14 @@
+# Dépendances principales
+fastapi
+uvicorn[standard]
+aiofiles
+python-multipart
+
+# Tests / Dev
+pytest
+pytest-asyncio
+httpx
+
+# Optionnel (format / lint)
+black
+ruff

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Server Log Analyser</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="/favicon.ico" />
+</head>
+<body>
+  <main class="container">
+    <h1>Server Log Analyser</h1>
+
+    <section class="card">
+      <label class="label">Sélectionne un fichier de logs</label>
+      <div class="row">
+        <input id="fileInput" type="file" accept=".log,.txt" />
+        <button id="uploadBtn" class="btn">Uploader et analyser</button>
+        <button id="cancelUploadBtn" class="btn" style="display:none;background:#9ca3af">Annuler upload</button>
+      </div>
+      <p id="uploadMsg" class="muted">Fichiers volumineux : l'analyse peut prendre quelques secondes.</p>
+    </section>
+
+    <section class="card">
+      <h2>Statut</h2>
+      <div id="status">Aucun job en cours.</div>
+    </section>
+
+    <section class="card">
+      <h2>Résultat</h2>
+      <pre id="result" class="result">—</pre>
+      <div class="row">
+        <button id="copyJson" class="btn" style="display:none;">Copier JSON</button>
+        <button id="cancelJobBtn" class="btn" style="display:none;background:#9ca3af">Annuler job</button>
+      </div>
+    </section>
+
+    <footer class="muted">Style sobre · UI minimale · <em>copier/coller</em> supporté</footer>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+    const cancelJobBtn = document.getElementById('cancelJobBtn');
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+    const copyBtn = document.getElementById('copyJson');
+
+    let currentUploadController = null;
+    let currentJobId = null;
+
+    uploadBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('Sélectionne d\'abord un fichier.');
+        return;
+      }
+      statusEl.textContent = 'Uploading...';
+      resultEl.textContent = '—';
+      copyBtn.style.display = 'none';
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      currentUploadController = new AbortController();
+      cancelUploadBtn.style.display = 'inline-block';
+      cancelUploadBtn.disabled = false;
+
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: fd, signal: currentUploadController.signal });
+        cancelUploadBtn.style.display = 'none';
+        currentUploadController = null;
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Upload failed: ${res.status} ${text}`);
+        }
+        const data = await res.json();
+        const jobId = data.job_id;
+        currentJobId = jobId;
+        statusEl.textContent = `Job créé : ${jobId} — uploaded ${data.uploaded_bytes || 0} bytes — polling...`;
+        pollJob(jobId);
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          statusEl.textContent = 'Upload annulé par l\'utilisateur.';
+        } else {
+          statusEl.textContent = 'Erreur lors de l\'upload : ' + e.message;
+        }
+        cancelUploadBtn.style.display = 'none';
+        currentUploadController = null;
+      }
+    });
+
+    cancelUploadBtn.addEventListener('click', () => {
+      if (currentUploadController) {
+        currentUploadController.abort();
+        cancelUploadBtn.disabled = true;
+      }
+    });
+
+    async function pollJob(jobId) {
+      try {
+        const res = await fetch(`/jobs/${jobId}`);
+        const data = await res.json();
+        statusEl.textContent = `Job ${jobId} — status: ${data.status} — progress: ${Math.round((data.progress||0)*100)}%`;
+        // show cancel job button when running
+        if (data.status === 'processing' || data.status === 'queued' || data.status === 'cancelling') {
+          cancelJobBtn.style.display = 'inline-block';
+          cancelJobBtn.disabled = false;
+        } else {
+          cancelJobBtn.style.display = 'none';
+        }
+        if (data.status === 'done') {
+          resultEl.textContent = JSON.stringify(data.result, null, 2);
+          copyBtn.style.display = 'inline-block';
+        } else if (data.status === 'failed') {
+          resultEl.textContent = `Échec : ${data.error || 'unknown'}`;
+        } else if (data.status === 'cancelled') {
+          resultEl.textContent = `Job annulé par l\'utilisateur.`;
+        } else {
+          setTimeout(() => pollJob(jobId), 1000);
+        }
+      } catch (e) {
+        statusEl.textContent = 'Erreur polling: ' + e.message;
+      }
+    }
+
+    cancelJobBtn.addEventListener('click', async () => {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(`/jobs/${currentJobId}/cancel`, { method: 'POST' });
+        if (!res.ok) throw new Error('Cancel failed');
+        const data = await res.json();
+        statusEl.textContent = `Cancel requested for ${currentJobId}`;
+        cancelJobBtn.disabled = true;
+      } catch (e) {
+        statusEl.textContent = 'Erreur annulation: ' + e.message;
+      }
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(resultEl.textContent);
+        copyBtn.textContent = 'Copié !';
+        setTimeout(() => (copyBtn.textContent = 'Copier JSON'), 1500);
+      } catch (e) {
+        alert('Impossible de copier : ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+.vscode/
+.idea/
+.DS_Store
+
+# uploads
+/uploads/*
+!/uploads/.gitkeep
