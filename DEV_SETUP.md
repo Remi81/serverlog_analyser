@@ -26,7 +26,20 @@ Commandes (Linux)
    uvicorn main:app --host 127.0.0.1 --port 8000
 
 5. Lancer les tests :
-   pytest
+   - Depuis le venv activé :
+     ```bash
+     source .venv/bin/activate
+     pytest
+     ```
+   - Sans activer le venv (commande directe) :
+     ```bash
+     .venv/bin/pytest -q
+     ```
+   - Exécuter un test précis :
+     ```bash
+     .venv/bin/pytest tests/test_parser.py::test_aggregated_paths_counts -q
+     ```
+   - Astuce VSCode : ajoute une tâche (`.vscode/tasks.json`) pour lancer les tests rapidement, ou utilise la fonctionnalité "Python: Run Tests" configurée sur pytest.
 
 ## Troubleshooting — Too many open files ⚠️
 Si tu vois une erreur « Too many open files (os error 24) » avec `--reload`, c'est lié à la limite de descripteurs ouverts du système. Vérifier la limite actuelle :
