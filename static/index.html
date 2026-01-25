@@ -26,10 +26,32 @@
       <div id="status">Aucun job en cours.</div>
     </section>
 
-    <section class="card">
+    <section class="card" id="resultsCard">
       <h2>Résultat</h2>
+      <div class="row" style="gap:16px;align-items:flex-start">
+        <div style="flex:1;min-width:260px">
+          <h3>Résumé</h3>
+          <div id="summary" class="muted">—</div>
+
+          <h3>Statuts</h3>
+          <div id="statusCounts" class="muted">—</div>
+
+          <h3 style="margin-top:12px">Timings</h3>
+          <div id="timings" class="muted">—</div>
+        </div>
+
+        <div style="flex:1;min-width:260px">
+          <h3>Top IPs <button id="copyIps" class="btn small" style="display:none;margin-left:8px">Copier IPs</button> <button id="csvIps" class="btn small" style="display:none;background:#0ea5e9">CSV</button></h3>
+          <div id="topIps">—</div>
+
+          <h3 style="margin-top:12px">Top URLs <button id="copyPaths" class="btn small" style="display:none;margin-left:8px">Copier URLs</button> <button id="csvPaths" class="btn small" style="display:none;background:#0ea5e9">CSV</button></h3>
+          <div id="topPaths">—</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:14px">JSON brut</h3>
       <pre id="result" class="result">—</pre>
-      <div class="row">
+      <div class="row" style="margin-top:8px">
         <button id="copyJson" class="btn" style="display:none;">Copier JSON</button>
         <button id="cancelJobBtn" class="btn" style="display:none;background:#9ca3af">Annuler job</button>
       </div>
@@ -98,6 +120,70 @@
       }
     });
 
+    // helpers to render simple tables and provide copy/CSV
+    const topIpsEl = document.getElementById('topIps');
+    const topPathsEl = document.getElementById('topPaths');
+    const statusCountsEl = document.getElementById('statusCounts');
+    const summaryEl = document.getElementById('summary');
+    const timingsEl = document.getElementById('timings');
+    const copyIpsBtn = document.getElementById('copyIps');
+    const copyPathsBtn = document.getElementById('copyPaths');
+    const csvIpsBtn = document.getElementById('csvIps');
+    const csvPathsBtn = document.getElementById('csvPaths');
+
+    function renderTableList(container, items) {
+      // items: [[key, count], ...]
+      if (!items || items.length === 0) {
+        container.innerHTML = '<div class="muted">—</div>';
+        return;
+      }
+      const maxRows = 20;
+      const rows = items.slice(0, maxRows).map(([key, count], idx) => {
+        const safeKey = escapeHtml(String(key));
+        return `
+          <tr>
+            <td class="rank">${idx+1}</td>
+            <td class="key">${safeKey} <button class="copy-item small" data-key="${safeKey}" title="Copier">📋</button></td>
+            <td class="count">${count}</td>
+          </tr>`;
+      });
+      container.innerHTML = `<table class="simple-table"><thead><tr><th>#</th><th>Valeur</th><th>Count</th></tr></thead><tbody>${rows.join('\n')}</tbody></table>`;
+    }
+
+    // handle per-item copy button clicks (delegation)
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.copy-item');
+      if (!btn) return;
+      const key = btn.getAttribute('data-key');
+      if (!key) return;
+      navigator.clipboard.writeText(key).then(() => {
+        const prev = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => (btn.textContent = prev), 1000);
+      }).catch((err) => {
+        alert('Impossible de copier : ' + (err && err.message ? err.message : err));
+      });
+    });
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
+    function toPlainList(items){ return items.map(([key]) => key).join('\n'); }
+    function toCsv(items){ return items.map(([key,count]) => `"${String(key).replace(/"/g,'""')}",${count}`).join('\n'); }
+
+    copyIpsBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(toPlainList(currentResult.top_ips || [])); copyIpsBtn.textContent='Copié !'; setTimeout(()=>copyIpsBtn.textContent='Copier IPs',1200); } catch(e){ alert('Impossible de copier : '+e.message); }
+    });
+    copyPathsBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(toPlainList(currentResult.top_paths || [])); copyPathsBtn.textContent='Copié !'; setTimeout(()=>copyPathsBtn.textContent='Copier URLs',1200); } catch(e){ alert('Impossible de copier : '+e.message); }
+    });
+
+    csvIpsBtn.addEventListener('click', () => { downloadContent('top_ips.csv', toCsv(currentResult.top_ips || [])); });
+    csvPathsBtn.addEventListener('click', () => { downloadContent('top_paths.csv', toCsv(currentResult.top_paths || [])); });
+
+    function downloadContent(filename, content){ const blob = new Blob([content], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    let currentResult = null;
+
     async function pollJob(jobId) {
       try {
         const res = await fetch(`/jobs/${jobId}`);
@@ -111,7 +197,28 @@
           cancelJobBtn.style.display = 'none';
         }
         if (data.status === 'done') {
-          resultEl.textContent = JSON.stringify(data.result, null, 2);
+          currentResult = data.result || {};
+          // summary
+          summaryEl.textContent = `Total requests: ${currentResult.total_requests || 0}`;
+          // status counts - render as a table like top lists
+          if (currentResult.status_counts) {
+            const entries = Object.entries(currentResult.status_counts).sort((a,b)=>b[1]-a[1]);
+            renderTableList(statusCountsEl, entries);
+          }
+          // timings
+          if (currentResult.timings) {
+            timingsEl.innerHTML = `mean: ${Number(currentResult.timings.mean).toFixed(3)}s · p95: ${Number(currentResult.timings.p95).toFixed(3)}s`;
+          }
+          // top lists (table format, up to 20)
+          renderTableList(topIpsEl, currentResult.top_ips || []);
+          renderTableList(topPathsEl, currentResult.top_paths || []);
+
+          // show copy/CSV buttons
+          if ((currentResult.top_ips || []).length) { copyIpsBtn.style.display='inline-block'; csvIpsBtn.style.display='inline-block'; }
+          if ((currentResult.top_paths || []).length) { copyPathsBtn.style.display='inline-block'; csvPathsBtn.style.display='inline-block'; }
+
+          // show raw JSON
+          resultEl.textContent = JSON.stringify(currentResult, null, 2);
           copyBtn.style.display = 'inline-block';
         } else if (data.status === 'failed') {
           resultEl.textContent = `Échec : ${data.error || 'unknown'}`;

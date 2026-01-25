@@ -46,10 +46,17 @@ class LogParser:
                 m = LogParser.pattern.match(line)
                 if not m:
                     continue
+                # sometimes logs put a timestamp or other token first instead of the IP
+                # try to use the captured ip if it looks like an IPv4 address, otherwise search the line
+                ip = m.group("ip")
+                if not re.match(r'^(?:\d{1,3}\.){3}\d{1,3}$', ip):
+                    search = re.search(r'(?P<ipv4>(?:\d{1,3}\.){3}\d{1,3})', line)
+                    if search:
+                        ip = search.group('ipv4')
                 status = m.group("status")
                 status_counts[status] += 1
                 paths[m.group("path")] += 1
-                ips[m.group("ip")] += 1
+                ips[ip] += 1
                 d = m.group("duration")
                 if d:
                     try:

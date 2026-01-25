@@ -71,6 +71,16 @@ from serverlog_analyser.jobs import JobManager
 
 # instantiate job manager
 job_manager = JobManager()
+
+# set event loop on startup so JobManager can schedule coroutines from worker threads
+@app.on_event("startup")
+async def _set_job_manager_loop():
+    try:
+        job_manager.set_loop(asyncio.get_running_loop())
+        logger.info("JobManager event loop set on startup")
+    except Exception as e:
+        logger.exception("Failed to set JobManager loop on startup: %s", e)
+
 # ---------------------------------
 # Helpers
 # ---------------------------------

@@ -41,6 +41,12 @@ class Job:
 class JobManager:
     def __init__(self):
         self._jobs: Dict[str, Job] = {}
+        # main event loop, set at FastAPI startup so we can schedule from worker threads
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Set the event loop to be used for scheduling jobs from other threads."""
+        self._loop = loop
 
     def create_job(self, filename: str, tmp_path: Optional[str] = None) -> Job:
         job_id = f"job-{uuid.uuid4().hex[:8]}"
@@ -89,18 +95,42 @@ class JobManager:
             job.error = str(e)
 
     def process_job(self, job_id: str):
+        # If called from an async context with a running loop, schedule directly
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(self._process_job_async(job_id))
             logger.info("Scheduled job %s with running loop", job_id)
+            return
         except RuntimeError:
+            pass
+
+        # If a main loop was set (FastAPI startup), submit the coroutine thread-safely
+        if self._loop is not None:
             try:
-                loop = asyncio.get_event_loop()
-                loop.call_soon_threadsafe(lambda: asyncio.create_task(self._process_job_async(job_id)))
-                logger.info("Scheduled job %s via call_soon_threadsafe", job_id)
+                asyncio.run_coroutine_threadsafe(self._process_job_async(job_id), self._loop)
+                logger.info("Scheduled job %s via run_coroutine_threadsafe", job_id)
+                return
             except Exception as e:
-                logger.exception("Failed to schedule job %s: %s", job_id, e)
-                job = self.get_job(job_id)
-                if job:
-                    job.status = "failed"
-                    job.error = f"scheduling_error: {e}"
+                logger.exception("Failed to schedule job %s via run_coroutine_threadsafe: %s", job_id, e)
+
+        # Last resort: create a background thread with its own event loop to run the job
+        try:
+            import threading
+
+            def _run():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self._process_job_async(job_id))
+                finally:
+                    loop.close()
+
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+            logger.info("Scheduled job %s on new thread loop", job_id)
+        except Exception as e:
+            logger.exception("Failed to schedule job %s: %s", job_id, e)
+            job = self.get_job(job_id)
+            if job:
+                job.status = "failed"
+                job.error = f"scheduling_error: {e}"
