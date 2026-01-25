@@ -174,10 +174,12 @@
       maxRows = maxRows || ((window.APP_CONFIG && window.APP_CONFIG.top_n_ips) || 20);
       const rows = items.slice(0, maxRows).map(([key, count], idx) => {
         const safeKey = escapeHtml(String(key));
+        const isIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(String(key));
+        const externalLink = isIp ? `<a class="external-link small" href="https://www.abuseipdb.com/check/${encodeURIComponent(String(key))}" target="_blank" rel="noopener" title="Ouvrir cette IP sur AbuseIPDB (nouvel onglet)">🔗</a>` : '';
         return `
           <tr>
             <td class="rank">${idx+1}</td>
-            <td class="key">${safeKey} <button class="copy-item small" data-key="${safeKey}" title="Copier">📋</button></td>
+            <td class="key">${safeKey} ${externalLink} <button class="copy-item small" data-key="${safeKey}" title="Copier">📋</button></td>
             <td class="count">${count}</td>
           </tr>`;
       });
