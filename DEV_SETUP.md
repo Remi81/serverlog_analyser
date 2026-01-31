@@ -57,8 +57,8 @@ ulimit -n 65536
 Ou l'augmenter de façon permanente pour ton utilisateur (ex. ajouter dans `/etc/security/limits.conf`) :
 
 ```
-remi soft nofile 65536
-remi hard nofile 65536
+<user> soft nofile 65536
+<user> hard nofile 65536
 ```
 
 Après modification, reconnecte-toi pour que les changements prennent effet.
@@ -67,5 +67,3 @@ Notes courtes
 - Pour désactiver le venv : `deactivate`.
 - Dans VSCode : ouvrez la palette (Ctrl+Shift+P) → "Python: Select Interpreter" → choisissez le `.venv` du projet.
 - Gardez le venv dans `.gitignore` pour ne pas commiter les dépendances.
-
-Si tu veux, je peux ajouter une tâche VSCode (`.vscode/tasks.json`) pour lancer le serveur et les tests rapidement.
