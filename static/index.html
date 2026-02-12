@@ -201,7 +201,18 @@
       });
     });
 
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+    function escapeHtml(s){ return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
+    // format duration (seconds) to H:MM:SS or M:SS
+    function formatDuration(seconds){
+      if (seconds === null || seconds === undefined) return '—';
+      const s = Math.max(0, Math.round(seconds));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const ss = s % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+      return `${m}:${String(ss).padStart(2,'0')}`;
+    }
 
     function toPlainList(items){ return items.map(([key]) => key).join('\n'); }
     function toCsv(items){ return items.map(([key,count]) => `"${String(key).replace(/"/g,'""')}",${count}`).join('\n'); }
@@ -306,7 +317,11 @@
         if (data.status === 'done') {
           currentResult = data.result || {};
           // summary
-          summaryEl.textContent = `Total requests: ${currentResult.total_requests || 0}`;
+          const parts = [`Total requests: ${currentResult.total_requests || 0}`];
+          if (currentResult.start_time) parts.push(`Début: ${currentResult.start_time}`);
+          if (currentResult.end_time) parts.push(`Fin: ${currentResult.end_time}`);
+          if (currentResult.duration_seconds !== undefined && currentResult.duration_seconds !== null) parts.push(`Durée: ${formatDuration(currentResult.duration_seconds)} (${Number(currentResult.duration_seconds).toFixed(3)}s)`);
+          summaryEl.textContent = parts.join(' · ');
           // status counts - render as a table like top lists
           if (currentResult.status_counts) {
             const entries = Object.entries(currentResult.status_counts).sort((a,b)=>b[1]-a[1]);

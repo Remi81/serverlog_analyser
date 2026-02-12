@@ -4,6 +4,7 @@ import os
 import asyncio
 from collections import Counter
 import statistics
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import aiofiles
 from .config import TOP_N_IPS, TOP_N_PATHS, AGGREGATED_LIMIT
@@ -20,6 +21,9 @@ class LogParser:
         # aggregated paths without query/fragments (useful to group /aides/?page=1 etc.)
         norm_paths = Counter()
         durations: List[float] = []
+        # track earliest / latest timestamps when present in the log lines
+        min_ts = None
+        max_ts = None
 
         total_bytes = 0
         try:
@@ -45,6 +49,18 @@ class LogParser:
                     bytes_read += len(line.encode("utf-8"))
                 except Exception:
                     bytes_read += len(line)
+
+                # extract ISO-like timestamp if present (e.g. "2026-01-23 12:00:01")
+                ts_search = re.search(r'(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                if ts_search:
+                    try:
+                        ts = datetime.strptime(ts_search.group('ts'), '%Y-%m-%d %H:%M:%S')
+                        if min_ts is None or ts < min_ts:
+                            min_ts = ts
+                        if max_ts is None or ts > max_ts:
+                            max_ts = ts
+                    except Exception:
+                        pass
 
                 m = LogParser.pattern.match(line)
                 if not m:
@@ -106,6 +122,15 @@ class LogParser:
         # Also provide aggregated paths (without query strings) to surface logical roots such as /aides
         aggregated = norm_paths.most_common(AGGREGATED_LIMIT)
 
+        # compute start/end/duration based on parsed timestamps (if any)
+        duration_seconds = 0
+        start_time_str = None
+        end_time_str = None
+        if min_ts and max_ts:
+            duration_seconds = (max_ts - min_ts).total_seconds()
+            start_time_str = min_ts.strftime('%Y-%m-%d %H:%M:%S')
+            end_time_str = max_ts.strftime('%Y-%m-%d %H:%M:%S')
+
         return {
             "total_requests": total,
             "status_counts": dict(status_counts),
@@ -113,4 +138,8 @@ class LogParser:
             "top_paths_aggregated": aggregated,
             "top_ips": ips.most_common(TOP_N_IPS),
             "timings": timings,
+            "start_time": start_time_str,
+            "end_time": end_time_str,
+            "duration_seconds": duration_seconds,
+            "duration": str(timedelta(seconds=duration_seconds)),
         }

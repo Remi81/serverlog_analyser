@@ -25,6 +25,11 @@ def test_ip_extraction_date_first(tmp_path):
     assert ('192.0.2.10', 2) in res['top_ips']
     assert ('192.0.2.11', 1) in res['top_ips']
 
+    # timestamps / duration should be extracted from the log lines
+    assert res.get('start_time') == '2026-01-23 12:00:01'
+    assert res.get('end_time') == '2026-01-23 12:00:03'
+    assert res.get('duration_seconds') == 2.0
+
 
 def test_aggregated_paths_counts(tmp_path):
     p = tmp_path / "aides.log"
