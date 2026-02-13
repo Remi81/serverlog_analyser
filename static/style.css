@@ -8,7 +8,8 @@ body{font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial,sans-ser
 .btn:active{transform:translateY(1px)}
 .label{display:block;margin-bottom:6px;font-weight:600}
 .muted{color:var(--muted);font-size:13px}
-.result{background:#0f172a;color:#e6edf3;padding:12px;border-radius:6px;overflow:auto;max-height:320px}
+#summary{white-space:pre-line;}
+.result{background:#0f172a;color:#e6edf3;padding:12px;border-radius:6px;overflow:auto;max-height:320px} 
 .small{padding:6px 8px;font-size:13px}
  .result{background:#0f172a;color:#e6edf3;padding:12px;border-radius:6px;overflow:auto;max-height:320px}
 .small{padding:6px 8px;font-size:13px}

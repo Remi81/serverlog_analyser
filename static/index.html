@@ -321,10 +321,14 @@
           if (currentResult.start_time) parts.push(`Début: ${currentResult.start_time}`);
           if (currentResult.end_time) parts.push(`Fin: ${currentResult.end_time}`);
           if (currentResult.duration_seconds !== undefined && currentResult.duration_seconds !== null) parts.push(`Durée: ${formatDuration(currentResult.duration_seconds)} (${Number(currentResult.duration_seconds).toFixed(3)}s)`);
-          summaryEl.textContent = parts.join(' · ');
+          // afficher chaque élément sur une ligne
+          summaryEl.textContent = parts.join('\n');
           // status counts - render as a table like top lists
           if (currentResult.status_counts) {
-            const entries = Object.entries(currentResult.status_counts).sort((a,b)=>b[1]-a[1]);
+            const entries = Object.entries(currentResult.status_counts).sort((a,b)=>b[1]-a[1]).map(([code,count]) => {
+              const msg = (currentResult.status_messages && currentResult.status_messages[code]) ? ` ${currentResult.status_messages[code]}` : '';
+              return [`${code}${msg}`, count];
+            });
             renderTableList(statusCountsEl, entries);
           }
           // timings
