@@ -60,3 +60,18 @@ def test_timings_calculation(tmp_path):
     assert timings['min'] == 0.1
     assert round(timings['mean'], 6) == round((0.1 + 0.2 + 0.3) / 3, 6)
     assert timings['median'] == 0.2
+
+
+def test_status_messages_are_populated(tmp_path):
+    p = tmp_path / "status_msg.log"
+    lines = [
+        '127.0.0.1 - - "GET /ok HTTP/1.1" 200 12 0.1',
+        '127.0.0.1 - - "GET /missing HTTP/1.1" 404 0 0.05',
+    ]
+    p.write_text("\n".join(lines))
+
+    res = asyncio.run(LogParser.parse_file(str(p)))
+    assert res['status_counts'].get('200') == 1
+    assert res['status_counts'].get('404') == 1
+    assert res['status_messages'].get('200') == 'OK'
+    assert res['status_messages'].get('404') == 'Not Found'

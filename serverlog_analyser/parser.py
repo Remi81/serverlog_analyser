@@ -5,6 +5,7 @@ import asyncio
 from collections import Counter
 import statistics
 from datetime import datetime, timedelta
+from http import HTTPStatus
 from typing import List, Dict, Any, Optional
 import aiofiles
 from .config import TOP_N_IPS, TOP_N_PATHS, AGGREGATED_LIMIT
@@ -131,9 +132,19 @@ class LogParser:
             start_time_str = min_ts.strftime('%Y-%m-%d %H:%M:%S')
             end_time_str = max_ts.strftime('%Y-%m-%d %H:%M:%S')
 
+        # build human-readable status messages using stdlib HTTPStatus when possible
+        status_messages: Dict[str, str] = {}
+        for code_str in dict(status_counts).keys():
+            try:
+                code_int = int(code_str)
+                status_messages[code_str] = HTTPStatus(code_int).phrase
+            except Exception:
+                status_messages[code_str] = ""
+
         return {
             "total_requests": total,
             "status_counts": dict(status_counts),
+            "status_messages": status_messages,
             "top_paths": paths.most_common(TOP_N_PATHS),
             "top_paths_aggregated": aggregated,
             "top_ips": ips.most_common(TOP_N_IPS),
